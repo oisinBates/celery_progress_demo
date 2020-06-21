@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Celery-Progress Example</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+        <style>
+            .nasa-image {
+                max-width: 100%;
+                max-height: 230px;
+                padding-bottom: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        {% load static %}
+        <div class="bg-dark text-white text-center">
+            <h1>Celery-Progress Demo</h1>
+            <p>Utilising NASA's <i>Astonomy Image of the Day</i> API</p> 
+        </div>
+        
+        <div class="container-fluid">
+            <div class="row align-items-end">
+                {% for key in celery_task_ids %}
+                    <div class="col-sm-3">
+                        <div class="text-center">
+                            <img id="progress-bar{{ key }}-image" src="" class="nasa-image">
+                        </div>
+                        <a id="progress-bar{{ key }}-image-link" href=""></a>
+                        <div class='progress-wrapper'>
+                            <div id="progress-bar{{ key }}" class='progress-bar' style="background-color: #68a9ef; width: 0%;">&nbsp;</div>
+                        </div>
+                        <div id="progress-bar{{ key }}-message">Waiting for progress to start...</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </body>
+</html>
+<!-- celery logic -->
+<script src="{% static 'celery_progress/celery_progress.js' %}"></script>
+<script>
+    function customProgress(progressBarElement, progressBarMessageElement, progress) {
+        barIdentifier = progressBarElement.id.substring(12)
+        
+        if(progress.current == 0 && progress.total == 100){
+            progressMessage = ""
+        } else {
+            if(progress.description && progress.description.url){
+                var nasaImageElement = document.getElementById(progressBarElement.id + "-image");
+                nasaImageElement.src = progress.description.url
+                var nasaImageLinkElement = document.getElementById(progressBarElement.id + "-image-link");
+                nasaImageLinkElement.href = progress.description.url
+                nasaImageLinkElement.innerHTML = progress.description.date + " | " + progress.description.title
+            }
+
+            taskNumber = parseInt(progress.current)+1
+            taskPercentage = taskNumber / progress.total * 100
+
+            progressBarElement.style.backgroundColor = "#68a9ef"
+            progressBarElement.style.width = taskPercentage + "%"
+            progressBarMessageElement.className = "alert alert-info"
+            progressMessage = "Currently fetching image " + taskNumber + " of " + progress.total
+        }
+
+        progressBarMessageElement.innerHTML = (
+            progressMessage
+        );
+    }
+</script>
+
+<script src="{% static 'celery_progress/celery_progress.js' %}"></script>
+
+{% for key, value in celery_task_ids.items %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var progressUrl = "{% url 'celery_progress:task_status' value %}";
+            CeleryProgressBar.initProgressBar(progressUrl, {
+                onProgress: customProgress,
+                progressBarId: "progress-bar{{ key }}",
+                progressBarMessageId: "progress-bar{{ key }}-message"
+            });
+        });
+    </script>
+{% endfor %}
